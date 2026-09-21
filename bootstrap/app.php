@@ -12,7 +12,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        $proxies = array_filter(explode(',', (string) env('TRUSTED_PROXIES', '')));
+        // Laravel only recognises the '*' wildcard as a plain string; inside an array it is a literal address that matches nothing.
+        $raw = trim((string) env('TRUSTED_PROXIES', ''));
+        $proxies = in_array($raw, ['*', '**'], true) ? $raw : array_filter(array_map('trim', explode(',', $raw)));
         if ($proxies) {
             $middleware->trustProxies(at: $proxies);
         }
