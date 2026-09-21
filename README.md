@@ -36,6 +36,10 @@ docker compose logs -f queue
 docker compose logs -f queue-replies
 ```
 
+## Parallel workers
+
+`docker compose up -d` starts `QUEUE_WORKERS` (default 10) voice-processing workers, `REPLY_WORKERS` (4) Telegram reply senders and `DRIVE_WORKERS` (3) Google Drive uploaders. Override them in `.env`, or ad hoc with `docker compose up -d --scale queue=20`. Messages from different participants are processed in parallel; one participant's messages stay strictly ordered by a per-participant Redis lock, so extra workers help only when many people send at once. Keep exactly **one** `telegram-polling` and one `scheduler`. Each idle worker uses about 35 MB and one PostgreSQL connection (default limit 100).
+
 ## Persistent originals
 
 Original Telegram bytes are written under the dataset mount, by default:

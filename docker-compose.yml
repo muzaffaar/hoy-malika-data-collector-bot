@@ -25,7 +25,7 @@ services:
       target: web
     image: hoy-malika-nginx:latest
     restart: unless-stopped
-    ports: ["${APP_PORT:-8080}:80"]
+    ports: ["127.0.0.1:${APP_PORT:-8080}:80"]
     networks: [backend]
     depends_on: [app]
 
@@ -37,16 +37,21 @@ services:
       timeout: 5s
       retries: 5
 
+  # Each replica is an independent worker. Updates from different participants run in parallel;
+  # one participant's updates stay strictly ordered by the per-participant Redis lock.
   queue:
     <<: *app
+    deploy: {replicas: "${QUEUE_WORKERS:-10}"}
     command: php artisan queue:work redis --queue=telegram-processing,default --sleep=1 --tries=10 --timeout=120 --max-time=3600
 
   queue-replies:
     <<: *app
+    deploy: {replicas: "${REPLY_WORKERS:-4}"}
     command: php artisan queue:work redis --queue=telegram-replies --sleep=1 --tries=10 --timeout=90 --max-time=3600
 
   queue-drive:
     <<: *app
+    deploy: {replicas: "${DRIVE_WORKERS:-3}"}
     command: php artisan queue:work redis --queue=google-drive --sleep=1 --tries=5 --timeout=300 --max-time=3600
 
   scheduler:
