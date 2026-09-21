@@ -40,7 +40,13 @@ class DatasetDoctor extends Command
                 $driveError = app(GoogleDriveDestination::class)->authError();
                 $checks['Drive login accepted by Google'] = $driveError === null;
                 if ($driveError) {
-                    $this->warn('Drive: '.$driveError);
+                    $this->warn('Drive login: '.$driveError);
+                } else {
+                    $folderError = app(GoogleDriveDestination::class)->folderError();
+                    $checks['Drive folder accepts uploads'] = $folderError === null;
+                    if ($folderError) {
+                        $this->warn('Drive folder: '.$folderError);
+                    }
                 }
             }
         }

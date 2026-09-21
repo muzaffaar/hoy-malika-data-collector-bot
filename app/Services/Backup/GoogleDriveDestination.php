@@ -32,6 +32,41 @@ class GoogleDriveDestination implements BackupDestination
         return $r->successful() && $r->json('access_token') ? null : trim(($r->json('error') ?? 'HTTP '.$r->status()).': '.$r->json('error_description'), ': ');
     }
 
+    /**
+     * Live check for dataset:doctor, run after the login works: can this account see the configured folder and add files to it?
+     * Returns null when uploads can succeed, otherwise Google's reason with a hint.
+     */
+    public function folderError(): ?string
+    {
+        Cache::forget('drive:access-token');
+        try {
+            $r = Http::withToken($this->token())->connectTimeout(10)->timeout(20)->get('https://www.googleapis.com/drive/v3/files/'.rawurlencode((string) config('dataset.drive_folder')), [
+                'fields' => 'id,name,mimeType,capabilities(canAddChildren)', 'supportsAllDrives' => 'true',
+            ]);
+        } catch (\Throwable) {
+            return 'Login or connection to Google failed';
+        }
+        if (! $r->successful()) {
+            $reason = (string) ($r->json('error.errors.0.reason') ?? $r->json('error.status') ?? 'HTTP '.$r->status());
+            $hint = match (true) {
+                in_array($reason, ['accessNotConfigured', 'SERVICE_DISABLED'], true) => 'enable the Google Drive API in the Google Cloud project that owns this OAuth client',
+                in_array($reason, ['notFound', 'NOT_FOUND'], true) => 'GOOGLE_DRIVE_FOLDER_ID is wrong, the account that authorized the token cannot see that folder, or the token was issued with a narrow scope (it needs https://www.googleapis.com/auth/drive)',
+                in_array($reason, ['insufficientPermissions', 'PERMISSION_DENIED', 'forbidden'], true) => 'the token needs the full https://www.googleapis.com/auth/drive scope',
+                default => '',
+            };
+
+            return trim($reason.': '.$r->json('error.message').($hint ? ' - '.$hint : ''), ': ');
+        }
+        if ($r->json('mimeType') !== 'application/vnd.google-apps.folder') {
+            return 'GOOGLE_DRIVE_FOLDER_ID does not point to a folder';
+        }
+        if (! $r->json('capabilities.canAddChildren')) {
+            return 'The account can see the folder "'.$r->json('name').'" but cannot add files to it (it needs Editor access)';
+        }
+
+        return null;
+    }
+
     private function token(): string
     {
         return Cache::remember('drive:access-token', 3000, function () {

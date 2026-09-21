@@ -47,7 +47,7 @@ services:
   queue-replies:
     <<: *app
     deploy: {replicas: "${REPLY_WORKERS:-4}"}
-    command: php artisan queue:work redis --queue=telegram-replies --sleep=1 --tries=10 --timeout=90 --max-time=3600
+    command: php artisan queue:work redis --queue=telegram-replies --sleep=0 --tries=10 --timeout=90 --max-time=3600
 
   queue-drive:
     <<: *app
