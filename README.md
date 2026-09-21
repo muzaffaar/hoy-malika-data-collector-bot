@@ -84,6 +84,8 @@ Retry failed/pending backups:
 
 `docker compose exec app php artisan dataset:backup-retry`
 
+To create a refresh token that is guaranteed to match the client ID/secret in `.env`, run `docker compose exec app php artisan dataset:drive-token` and follow the printed steps (use an OAuth client of type *Desktop app*; tokens made in the OAuth Playground without "Use your own OAuth credentials" cause `unauthorized_client`).
+
 `docker compose exec app php artisan dataset:doctor` makes a live call to Google and prints why a login is rejected. If it reports `unauthorized_client` or `invalid_grant`, issue a new refresh token **with the same client ID and secret that are in `.env`**, using the full `https://www.googleapis.com/auth/drive` scope (narrower scopes cannot write into a folder the app did not create). If the OAuth consent screen is in *Testing* mode Google expires refresh tokens after 7 days, so set it to *In production*. After updating `GOOGLE_DRIVE_REFRESH_TOKEN`, run `docker compose up -d` (reloads `.env`) and then `dataset:backup-retry`.
 
 ## Continuous local-machine copy
