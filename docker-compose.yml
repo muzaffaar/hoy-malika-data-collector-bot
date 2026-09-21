@@ -1,0 +1,93 @@
+name: hoy-malika
+x-app: &app
+  build:
+    context: .
+    target: runtime
+  image: hoy-malika-app:latest
+  env_file: .env
+  environment:
+    HOME: /tmp
+    XDG_CONFIG_HOME: /tmp/.config
+    LOG_CHANNEL: stderr
+  restart: unless-stopped
+  volumes:
+    - ${DATASET_HOST_PATH:-./docker-data/dataset}:/var/www/html/storage/app/private/dataset
+    - app_logs:/var/www/html/storage/logs
+  networks: [backend]
+  depends_on:
+    postgres: {condition: service_healthy}
+    redis: {condition: service_healthy}
+
+services:
+  nginx:
+    build:
+      context: .
+      target: web
+    image: hoy-malika-nginx:latest
+    restart: unless-stopped
+    ports: ["${APP_PORT:-8080}:80"]
+    networks: [backend]
+    depends_on: [app]
+
+  app:
+    <<: *app
+    healthcheck:
+      test: ["CMD-SHELL", "php -r '$$s=@fsockopen(\"127.0.0.1\",9000); exit($$s?0:1);'"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  queue:
+    <<: *app
+    command: php artisan queue:work redis --queue=telegram-processing,default --sleep=1 --tries=10 --timeout=120 --max-time=3600
+
+  queue-replies:
+    <<: *app
+    command: php artisan queue:work redis --queue=telegram-replies --sleep=1 --tries=10 --timeout=90 --max-time=3600
+
+  queue-drive:
+    <<: *app
+    command: php artisan queue:work redis --queue=google-drive --sleep=1 --tries=5 --timeout=300 --max-time=3600
+
+  scheduler:
+    <<: *app
+    command: php artisan schedule:work
+
+  telegram-polling:
+    <<: *app
+    command: php artisan telegram:poll
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes: [redis_data:/data]
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+  redis_data:
+  app_logs:
+networks:
+  backend:
+    driver: bridge

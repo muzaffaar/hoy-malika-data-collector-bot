@@ -1,0 +1,21 @@
+[Unit]
+Description=Hoy Malika verified dataset synchronization
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dataset-sync
+EnvironmentFile=/etc/hoy-malika-sync.env
+ExecStart=/usr/bin/python3 /opt/hoy-malika/sync.py
+Restart=always
+RestartSec=15
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/hoy-malika
+PrivateTmp=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

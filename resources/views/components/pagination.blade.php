@@ -1,0 +1,3 @@
+@if ($paginator->hasPages())
+<nav class="flex items-center justify-between gap-3" aria-label="Pagination"><span class="text-xs text-gray-500">{{ $paginator->firstItem() }}–{{ $paginator->lastItem() }} of {{ $paginator->total() }}</span><div class="flex gap-2">@if($paginator->onFirstPage())<span class="button secondary opacity-40">Previous</span>@else<a class="button secondary" href="{{ $paginator->previousPageUrl() }}" rel="prev">Previous</a>@endif @if($paginator->hasMorePages())<a class="button secondary" href="{{ $paginator->nextPageUrl() }}" rel="next">Next</a>@else<span class="button secondary opacity-40">Next</span>@endif</div></nav>
+@endif

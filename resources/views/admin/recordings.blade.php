@@ -1,0 +1,1 @@
+<x-layout title="Recordings"><p class="page-intro">Every original, with its integrity and backup history.</p><x-filters :range="$range" extended/><x-recordings-table :recordings="$recordings"/></x-layout>
