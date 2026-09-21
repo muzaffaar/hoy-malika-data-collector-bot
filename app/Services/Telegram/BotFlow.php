@@ -28,7 +28,13 @@ class BotFlow
             'telegram_username' => $m['from']['username'] ?? null,
             'telegram_language_code' => $m['from']['language_code'] ?? null,
             'first_interaction_at' => now(), 'last_interaction_at' => now(),
+            // Set explicitly: Laravel does not reload database defaults after an insert, so a brand-new participant
+            // would otherwise have a null state and be answered without the consent buttons.
+            'onboarding_state' => State::AWAITING_CONSENT, 'consent_given' => false, 'recording_count' => 0,
         ]);
+        // Rows created before this guard (or by other code) may still lack a state: they are first-time users too.
+        $p->onboarding_state ??= State::AWAITING_CONSENT;
+        $p->recording_count ??= 0;
         if ($p->wasRecentlyCreated) {
             Log::info('participant.registered', ['participant_id' => $p->id]);
         }
