@@ -68,7 +68,8 @@ return [
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
             'queue' => env('REDIS_QUEUE', 'default'),
             'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 420),
-            'block_for' => null,
+            // Seconds an idle worker waits on Redis for a job (0/empty = poll every --sleep seconds). Jobs are picked up instantly.
+            'block_for' => (int) env('REDIS_QUEUE_BLOCK_FOR', 2) ?: null,
             'after_commit' => false,
         ],
 

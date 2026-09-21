@@ -41,6 +41,8 @@ class TelegramPoll extends Command
 
         $this->info('Telegram long polling started.');
         Log::info('telegram.polling_started');
+        // Recover anything ingested before a restart; afterwards only new updates are queued (the scheduler sweeps every minute).
+        $inbox->dispatchPending();
         $failures = 0;
 
         do {
@@ -71,9 +73,9 @@ class TelegramPoll extends Command
                     $this->line(sprintf('Received %d Telegram update(s), starting at offset %d.', count($updates), $offset));
                 }
 
-                $inbox->ingest($updates);
+                $new = $inbox->ingest($updates);
                 Cache::put('heartbeat:telegram', now()->timestamp, 300);
-                $inbox->dispatchPending();
+                $inbox->dispatchNew($new);
                 $failures = 0;
             } catch (\Throwable $e) {
                 $delay = min(60, config('telegram.retry_seconds') * (2 ** min(++$failures, 5)));
