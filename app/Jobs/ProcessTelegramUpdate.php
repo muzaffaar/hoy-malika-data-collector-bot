@@ -29,6 +29,7 @@ class ProcessTelegramUpdate implements ShouldQueue
 
     public function handle(BotFlow $flow): void
     {
+        $startedNs = hrtime(true);
         Cache::put('heartbeat:queue', now()->timestamp, 300);
         $update = TelegramUpdate::find($this->updateId);
         if (! $update || $update->processed_at || $update->available_at?->isFuture()) {
@@ -90,6 +91,10 @@ class ProcessTelegramUpdate implements ShouldQueue
             }
         } finally {
             $lock->release();
+            $ms = (int) ((hrtime(true) - $startedNs) / 1e6);
+            if ($ms > 2000) {
+                Log::warning('telegram.slow_update', ['update_id' => $this->updateId, 'ms' => $ms]);
+            }
         }
     }
 }

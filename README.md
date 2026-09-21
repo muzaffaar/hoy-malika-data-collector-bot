@@ -133,6 +133,8 @@ docker compose exec app php artisan dataset:doctor
 
 `dataset:verify` recalculates size and SHA-256 for every original and reports integrity failures.
 
+`telegram:speed` answers "why is the bot slow?": it measures DNS, TCP, TLS and Telegram's own answer time from this server (default routing and IPv4-only), the PostgreSQL and Redis round trips, the server load, and the speed of the bot's kept-alive connection. The bot reuses one open connection to Telegram per worker process instead of opening a new one for every call. Any Telegram call slower than 1.5 s or job slower than 2 s is logged as `telegram.slow_call` / `telegram.slow_update` with the stage, so `docker compose logs queue queue-replies | grep slow_` shows where time went.
+
 `dataset:latency [--minutes=60]` shows where time goes: received -> processed and reply queued -> delivered (average, p95, max), updates that keep failing with their last error, queue backlog per queue, and failed jobs. Run it first when the bot feels slow. Failed steps are retried on time (after 3 s, 6 s, 12 s, ...) instead of waiting for the once-a-minute scheduler sweep.
 
 ## Production updates
