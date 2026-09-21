@@ -52,7 +52,10 @@ class SendTelegramReply implements ShouldQueue
                 Participant::where('telegram_user_id', $out->chat_id)->update(['is_blocked' => true]);
                 $out->update(['sent_at' => now()]);
             } else {
-                $out->update(['attempts' => $out->attempts + 1, 'available_at' => now()->addSeconds(max($e->retryAfter, min(3600, 2 ** min(12, $out->attempts + 2))))]);
+                $retryAt = now()->addSeconds(max($e->retryAfter, min(3600, 2 ** min(12, $out->attempts + 2))));
+                $out->update(['attempts' => $out->attempts + 1, 'available_at' => $retryAt]);
+                // Retry exactly when due; the once-a-minute scheduler sweep stays as the safety net.
+                self::dispatch($out->id)->delay($retryAt);
             }
         } finally {
             $lock->release();

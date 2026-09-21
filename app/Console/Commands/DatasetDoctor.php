@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Services\Backup\GoogleDriveDestination;
+use App\Services\OriginalStorage;
 use App\Services\Telegram\BotFlow;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
@@ -64,6 +65,15 @@ class DatasetDoctor extends Command
             $checks['Storage is private'] = ! str_starts_with(str_replace('\\', '/', realpath($path) ?: $path), str_replace('\\', '/', public_path()));
         } catch (\Throwable) {
             $checks['Storage writable with reserve'] = false;
+        }
+        try {
+            $probeError = app(OriginalStorage::class)->writeProbe();
+            $checks['Original storage accepts new voices (write probe)'] = $probeError === null;
+            if ($probeError) {
+                $this->warn('Storage: '.$probeError.' - the dataset directory must be writable by the container user (www-data, uid 33).');
+            }
+        } catch (\Throwable) {
+            $checks['Original storage accepts new voices (write probe)'] = false;
         }
         foreach ($checks as $label => $ok) {
             $ok ? $this->info('PASS '.$label) : $this->error('FAIL '.$label);

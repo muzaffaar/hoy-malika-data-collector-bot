@@ -70,7 +70,10 @@ class ProcessTelegramUpdate implements ShouldQueue
             if ($e instanceof TelegramApiException) {
                 $delay = max($delay, $e->retryAfter);
             }
-            $update->update(['attempts' => $update->attempts + 1, 'last_error' => mb_substr(get_class($e).': '.$e->getMessage(), 0, 1000), 'available_at' => now()->addSeconds($delay)]);
+            $retryAt = now()->addSeconds($delay);
+            $update->update(['attempts' => $update->attempts + 1, 'last_error' => mb_substr(get_class($e).': '.$e->getMessage(), 0, 1000), 'available_at' => $retryAt]);
+            // Retry exactly when due; the once-a-minute scheduler sweep stays as the safety net.
+            self::dispatch($update->id)->delay($retryAt);
             Log::error('telegram.processing_retry', [
                 'update_id' => $update->id,
                 'exception_type' => get_class($e),

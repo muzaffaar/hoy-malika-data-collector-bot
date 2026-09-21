@@ -30,6 +30,8 @@ class SystemHealth
         $root = storage_path('app/private');
         $free = disk_free_space($root);
         $checks['Private storage'] = is_writable($root) ? 'Writable' : 'Not writable';
+        $probeError = app(OriginalStorage::class)->writeProbe();
+        $checks['Original storage (voice saves)'] = $probeError === null ? 'Accepting new voices' : 'FAILING: '.$probeError;
         $checks['Free disk'] = number_format($free / 1073741824, 2).' GB'.($free < config('dataset.minimum_free_bytes') ? ' — CRITICAL' : '');
         $checks['Unprocessed updates'] = TelegramUpdate::whereNull('processed_at')->count();
         $checks['Failed / retrying updates'] = TelegramUpdate::whereNull('processed_at')->where('attempts', '>', 0)->count();

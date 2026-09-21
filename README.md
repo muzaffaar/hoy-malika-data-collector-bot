@@ -50,6 +50,18 @@ For production set:
 
 `DATASET_HOST_PATH=/srv/hoy-malika/dataset`
 
+**Linux ownership (the usual cause of "Ovozni saqlashda vaqtinchalik muammo").** The containers run as `www-data` (uid 33). Docker creates a missing host folder as `root`, so voices cannot be written until you run once:
+
+```bash
+sudo mkdir -p /srv/hoy-malika/dataset && sudo chown -R 33:33 /srv/hoy-malika/dataset
+```
+
+`docker compose exec app php artisan dataset:doctor` (and the admin **System health** page) run a real write probe against this folder and print the exact reason if it fails. A failed voice is kept and retried automatically with growing delays (up to 1 hour). After fixing the cause, release them immediately:
+
+```bash
+docker compose exec postgres sh -c 'psql -U $POSTGRES_USER -d $POSTGRES_DB -c "update telegram_updates set available_at = null where processed_at is null;"'
+```
+
 Files are downloaded to `.part`, size checked, SHA-256 hashed, fsynced, atomically renamed, and made read-only. The application never transcodes an original. Recreating application containers does not remove this host directory.
 
 **Never use destructive volume/data commands without understanding their effect.** In particular, do not remove the dataset host directory and do not use `docker compose down -v` as a routine deployment command.
@@ -116,6 +128,8 @@ docker compose exec app php artisan dataset:doctor
 ```
 
 `dataset:verify` recalculates size and SHA-256 for every original and reports integrity failures.
+
+`dataset:latency [--minutes=60]` shows where time goes: received -> processed and reply queued -> delivered (average, p95, max), updates that keep failing with their last error, queue backlog per queue, and failed jobs. Run it first when the bot feels slow. Failed steps are retried on time (after 3 s, 6 s, 12 s, ...) instead of waiting for the once-a-minute scheduler sweep.
 
 ## Production updates
 

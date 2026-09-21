@@ -113,6 +113,37 @@ class OriginalStorage
         }
     }
 
+    /**
+     * Runs the same filesystem steps as save() (mkdir, write, fsync, rename, chmod) in the real original directory.
+     * Returns null when a voice could be stored, otherwise the reason and path. is_writable() on the storage root is
+     * not enough: the dataset directory is a separate mount whose owner may differ from the container user.
+     */
+    public function writeProbe(): ?string
+    {
+        $dir = $this->path(config('dataset.base_path').'/.write-probe');
+        $file = $dir.'/'.bin2hex(random_bytes(6));
+        try {
+            if (! is_dir($dir) && ! mkdir($dir, 0700, true) && ! is_dir($dir)) {
+                return 'Cannot create '.$dir;
+            }
+            file_put_contents($file.'.part', 'probe');
+            $handle = fopen($file.'.part', 'r+b');
+            fsync($handle);
+            fclose($handle);
+            rename($file.'.part', $file);
+            @chmod($file, 0400);
+
+            return null;
+        } catch (\Throwable $e) {
+            return $e->getMessage().' ('.$dir.', running as uid '.(function_exists('posix_geteuid') ? posix_geteuid() : '?').')';
+        } finally {
+            @chmod($file, 0600);
+            @unlink($file);
+            @unlink($file.'.part');
+            @rmdir($dir);
+        }
+    }
+
     public function valid(VoiceRecording $recording): bool
     {
         $path = $this->path($recording->relative_storage_path);

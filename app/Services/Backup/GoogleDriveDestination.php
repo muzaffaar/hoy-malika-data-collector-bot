@@ -58,6 +58,7 @@ class GoogleDriveDestination implements BackupDestination
                 Cache::forget('drive:access-token');
             }
             if (! $r->successful()) {
+                Log::warning('drive.api_failed', ['method' => $method, 'status' => $r->status(), 'reason' => $r->json('error.errors.0.reason') ?? $r->json('error.status'), 'message' => $r->json('error.message')]);
                 throw new \RuntimeException;
             }
 

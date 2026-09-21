@@ -13,7 +13,7 @@ class TelegramClient
             throw new TelegramApiException(60);
         }
         try {
-            $response = Http::connectTimeout(10)->timeout(config('telegram.timeout') + 15)
+            $response = Http::connectTimeout(10)->timeout($method === 'getUpdates' ? config('telegram.timeout') + 15 : 15)
                 ->post('https://api.telegram.org/bot'.config('telegram.token').'/'.$method, $data);
         } catch (\Throwable) {
             Log::warning('telegram.network_failure', ['method' => $method]);
