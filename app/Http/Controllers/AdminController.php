@@ -70,6 +70,9 @@ class AdminController extends Controller
         if ($s = $filters['sync'] ?? null) {
             $q->where(fn ($q) => $q->where('backup_status', $s)->orWhere('local_sync_status', $s));
         }
+        if ($t = $filters['type'] ?? null) {
+            $q->where('sample_type', $t);
+        }
 
         return view('admin.recordings', ['recordings' => $q->latest('telegram_received_at')->paginate(25)->withQueryString(), 'range' => $range]);
     }

@@ -21,6 +21,7 @@ class DashboardFilterRequest extends FormRequest
             'min_recordings' => ['nullable', 'integer', 'min:0'], 'max_recordings' => ['nullable', 'integer', 'min:0'],
             'participant_id' => ['nullable', 'integer', 'min:1'],
             'sort' => ['nullable', Rule::in(['created_at', 'recording_count', 'id'])], 'direction' => ['nullable', Rule::in(['asc', 'desc'])],
-            'sync' => ['nullable', Rule::in(['PENDING', 'COMPLETED', 'FAILED', 'DISABLED', 'UPLOADING', 'RETRYING'])]];
+            'sync' => ['nullable', Rule::in(['PENDING', 'COMPLETED', 'FAILED', 'DISABLED', 'UPLOADING', 'RETRYING'])],
+            'type' => ['nullable', Rule::in(['WAKE_WORD', 'HARD_NEGATIVE'])]];
     }
 }

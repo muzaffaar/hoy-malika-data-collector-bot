@@ -15,8 +15,17 @@ class VoiceRecordingFactory extends Factory
         $id = fake()->uuid();
 
         return ['id' => $id, 'participant_id' => Participant::factory(), 'telegram_message_id' => fake()->unique()->numberBetween(1, 2000000000), 'telegram_chat_id' => 12345,
+            'sample_type' => 'WAKE_WORD',
             'telegram_file_id' => 'fixture-'.$id, 'telegram_file_unique_id' => 'unique-'.$id, 'stored_filename' => $id.'.ogg', 'relative_storage_path' => 'dataset/original/fixtures/'.$id.'.ogg',
             'mime_type' => 'audio/ogg', 'original_extension' => 'ogg', 'duration_seconds' => 2, 'file_size_bytes' => 7, 'sha256_checksum' => hash('sha256', 'fixture'),
             'telegram_received_at' => now(), 'downloaded_at' => now(), 'backup_status' => 'PENDING', 'local_sync_status' => 'PENDING'];
+    }
+
+    public function hardNegative(): self
+    {
+        return $this->state(fn (array $attributes) => [
+            'sample_type' => 'HARD_NEGATIVE',
+            'relative_storage_path' => 'dataset/hard_negative/fixtures/'.$attributes['id'].'.ogg',
+        ]);
     }
 }

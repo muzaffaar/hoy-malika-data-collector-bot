@@ -3,6 +3,7 @@
 namespace App\Services\Telegram;
 
 use App\Enums\OnboardingState as State;
+use App\Enums\SampleType;
 use App\Models\Participant;
 use App\Models\TelegramOutbox;
 use App\Models\TelegramUpdate;
@@ -14,6 +15,10 @@ use Illuminate\Support\Facades\Log;
 
 class BotFlow
 {
+    private const BUTTON_WAKE_WORD = '🎙 “Hoy, Malika” yuboraman';
+
+    private const BUTTON_HARD_NEGATIVE = '🔀 Boshqa (o‘xshash) so‘z yuboraman';
+
     public function process(TelegramUpdate $update): void
     {
         $m = $update->payload['message'] ?? null;
@@ -31,10 +36,13 @@ class BotFlow
             // Set explicitly: Laravel does not reload database defaults after an insert, so a brand-new participant
             // would otherwise have a null state and be answered without the consent buttons.
             'onboarding_state' => State::AWAITING_CONSENT, 'consent_given' => false, 'recording_count' => 0,
+            'collection_mode' => SampleType::WAKE_WORD, 'hard_negative_count' => 0,
         ]);
         // Rows created before this guard (or by other code) may still lack a state: they are first-time users too.
         $p->onboarding_state ??= State::AWAITING_CONSENT;
         $p->recording_count ??= 0;
+        $p->hard_negative_count ??= 0;
+        $p->collection_mode ??= SampleType::WAKE_WORD;
         if ($p->wasRecentlyCreated) {
             Log::info('participant.registered', ['participant_id' => $p->id]);
         }
@@ -54,7 +62,7 @@ class BotFlow
         $voice = $m['voice'] ?? (config('dataset.accept_audio') ? ($m['audio'] ?? null) : null);
         $recording = null;
         if ($text === '/status') {
-            $response = $this->reply("Siz {$p->recording_count} ta ovoz yuborgansiz.");
+            $response = $this->reply("Siz {$p->recording_count} ta ovoz yuborgansiz.\nO‘xshash (hard negative) so‘zlar: {$p->hard_negative_count} ta.");
         } elseif (in_array($text, ['/start', '/help'])) {
             $response = $this->prompt($p);
         } elseif ($p->onboarding_state === State::AWAITING_CONSENT || $p->onboarding_state === State::NEW) {
@@ -83,27 +91,41 @@ class BotFlow
                 $p->onboarding_state = State::READY_FOR_RECORDINGS;
             }
             $response = $this->prompt($p);
+        } elseif (in_array($text, [self::BUTTON_WAKE_WORD, self::BUTTON_HARD_NEGATIVE])) {
+            $p->collection_mode = $text === self::BUTTON_HARD_NEGATIVE ? SampleType::HARD_NEGATIVE : SampleType::WAKE_WORD;
+            $response = $this->prompt($p);
         } elseif (isset($m['forward_origin']) || ! $voice) {
-            $response = $this->reply('🎙 Iltimos, “Hoy, Malika” deb aytilgan o‘zingizning ovozli xabaringizni yuboring.');
+            $response = $this->reply($p->collection_mode === SampleType::HARD_NEGATIVE
+                ? '🎙 Iltimos, ovozli xabar sifatida “Hoy, Malika”ga o‘xshash, lekin boshqa bir so‘z yoki iborani yuboring.'
+                : '🎙 Iltimos, “Hoy, Malika” deb aytilgan o‘zingizning ovozli xabaringizni yuboring.', $this->modeButtons());
         } elseif (empty($voice['file_id']) || empty($voice['file_unique_id']) || ! isset($voice['duration']) || $voice['duration'] < config('dataset.min_duration')) {
-            $response = $this->reply('Ovoz juda qisqa. Iltimos, “Hoy, Malika” iborasini to‘liq ayting.');
+            $response = $this->reply('Ovoz juda qisqa. Iltimos, iborani to‘liq va aniq ayting.', $this->modeButtons());
         } elseif ($voice['duration'] > config('dataset.max_duration') || ($voice['file_size'] ?? 0) > config('dataset.max_bytes')) {
-            $response = $this->reply('Bu ovozli xabar biroz uzun. Iltimos, faqat “Hoy, Malika” iborasini ayting.');
+            $response = $this->reply('Bu ovozli xabar biroz uzun. Iltimos, qisqaroq qilib ayting.', $this->modeButtons());
         } elseif ($p->consent_given && $p->gender && $p->age_range) {
             $existing = VoiceRecording::where('telegram_chat_id', $m['chat']['id'])->where('telegram_message_id', $m['message_id'])->first();
+            $type = $p->collection_mode;
             if (! $existing) {
-                $stored = app(OriginalStorage::class)->save($p, $m, $voice);
+                $stored = app(OriginalStorage::class)->save($p, $m, $voice, $type);
                 $recording = $stored + ['participant_id' => $p->id, 'telegram_message_id' => $m['message_id'], 'telegram_chat_id' => $m['chat']['id'],
                     'telegram_file_id' => $voice['file_id'], 'telegram_file_unique_id' => $voice['file_unique_id'], 'duration_seconds' => $voice['duration'],
-                    'telegram_received_at' => CarbonImmutable::createFromTimestampUTC($m['date']),
+                    'telegram_received_at' => CarbonImmutable::createFromTimestampUTC($m['date']), 'sample_type' => $type,
                     'backup_status' => config('dataset.drive_enabled') ? 'PENDING' : 'DISABLED', 'backup_destination' => config('dataset.drive_enabled') ? 'google-drive' : null,
                     'local_sync_status' => config('dataset.local_sync') ? 'PENDING' : 'DISABLED'];
-                $p->recording_count++;
-                $p->onboarding_state = $p->recording_count >= config('dataset.target') ? State::COMPLETED : State::COLLECTING;
+                if ($type === SampleType::HARD_NEGATIVE) {
+                    $p->hard_negative_count++;
+                } else {
+                    $p->recording_count++;
+                    $p->onboarding_state = $p->recording_count >= config('dataset.target') ? State::COMPLETED : State::COLLECTING;
+                }
             }
-            $response = $this->reply("✅ Ovozli xabaringiz qabul qilindi.\nJami: {$p->recording_count} / ".config('dataset.target'));
-            if ($recording && $p->recording_count === config('dataset.target')) {
-                $response['text'] .= "\n🎉 Rahmat! Kerakli ovozlar sonini yubordingiz. Xohlasangiz, qo‘shimcha ovozli namunalar ham yuborishingiz mumkin.";
+            if ($type === SampleType::HARD_NEGATIVE) {
+                $response = $this->reply("✅ Qabul qilindi (o‘xshash so‘z sifatida).\nAsosiy so‘zlar: {$p->recording_count} / ".config('dataset.target')."\nO‘xshash so‘zlar: {$p->hard_negative_count} ta.", $this->modeButtons());
+            } else {
+                $response = $this->reply("✅ Ovozli xabaringiz qabul qilindi.\nJami: {$p->recording_count} / ".config('dataset.target'), $this->modeButtons());
+                if ($recording && $p->recording_count === config('dataset.target')) {
+                    $response['text'] .= "\n🎉 Rahmat! Kerakli ovozlar sonini yubordingiz. Xohlasangiz, “".self::BUTTON_HARD_NEGATIVE."” tugmasi orqali “Hoy, Malika”ga o‘xshash so‘zlarni ham yuborishingiz mumkin — bu modelni yanada aniqroq qiladi!";
+                }
             }
         }
         DB::transaction(function () use ($p, $recording, $update, $m, $response) {
@@ -135,13 +157,20 @@ class BotFlow
         return array_filter(config('dataset.age_ranges'), fn ($minimum) => $minimum >= config('dataset.min_age'));
     }
 
+    private function modeButtons(): array
+    {
+        return [self::BUTTON_WAKE_WORD, self::BUTTON_HARD_NEGATIVE];
+    }
+
     private function prompt(Participant $p): array
     {
         return match ($p->onboarding_state) {
             State::NEW, State::AWAITING_CONSENT => $this->reply('Assalomu alaykum! 👋 Biz “Hoy, Malika” ovozli yordamchisi uchun ovoz namunalarini yig‘moqdamiz. Ovozlaringiz AI modelini o‘qitish va tadqiqot uchun ishlatiladi. Ishtirok etishga rozimisiz?', ['✅ Roziman', '❌ Rozimasman']),
             State::AWAITING_AGE => $this->reply('Ishtirokchilar kamida '.config('dataset.min_age').' yoshda bo‘lishi kerak. Yoshingiz qaysi oraliqda?', array_keys($this->ageRanges())),
             State::AWAITING_GENDER => $this->reply('Jinsingizni tanlang:', ['👨 Erkak', '👩 Ayol']),
-            default => $this->reply("Xush kelibsiz! Siz {$p->recording_count} ta ovoz yuborgansiz.\n🎙 Faqat “Hoy, Malika” deb tabiiy ovozingizda ayting va ovozli xabar yuboring. Har safar bitta ovoz yuboring.\nSekinroq, tezroq yoki biroz uzoqroqdan aytishingiz mumkin."),
+            default => $p->collection_mode === SampleType::HARD_NEGATIVE
+                ? $this->reply("🔀 Siz hozir “o‘xshash so‘z” rejimidasiz ({$p->hard_negative_count} ta yuborilgan).\n“Hoy, Malika”ga OHANGDOSH, lekin BOSHQA bir so‘z yoki qisqa iborani (masalan boshqa ism, kundalik so‘zlashuvdagi biror ibora) tabiiy ovozingizda ayting va ovozli xabar sifatida yuboring. Faqat “Hoy, Malika”ning o‘zini aytmang.\nHar safar bitta ovoz yuboring.\nAsosiy rejimga qaytish uchun pastdagi tugmani bosing.", $this->modeButtons())
+                : $this->reply("Xush kelibsiz! Siz {$p->recording_count} ta ovoz yuborgansiz.\n🎙 Faqat “Hoy, Malika” deb tabiiy ovozingizda ayting va ovozli xabar yuboring. Har safar bitta ovoz yuboring.\nSekinroq, tezroq yoki biroz uzoqroqdan aytishingiz mumkin.\n\nModelni yanada aniqroq qilish uchun “o‘xshash so‘z”larni ham yuborishingiz mumkin — buning uchun pastdagi tugmani bosing.", $this->modeButtons()),
         };
     }
 }

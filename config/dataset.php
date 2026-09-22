@@ -11,6 +11,7 @@ return [
     'accept_audio' => (bool) env('ACCEPT_AUDIO_MESSAGES', false),
     'disk' => env('DATASET_DISK', 'local'),
     'base_path' => 'dataset/original',
+    'hard_negative_base_path' => 'dataset/hard_negative',
     'display_timezone' => env('APP_TIMEZONE', 'Asia/Tashkent'),
     'minimum_free_bytes' => (int) env('MINIMUM_FREE_DISK_BYTES', 1073741824),
     'local_sync' => (bool) env('LOCAL_SYNC_ENABLED', true),

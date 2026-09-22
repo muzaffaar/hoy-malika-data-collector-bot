@@ -24,6 +24,12 @@ Docker services: `nginx`, `app`, `postgres`, `redis`, `queue`, `queue-replies`, 
 
 Dashboard: `APP_URL/admin/login`.
 
+## Hard negatives
+
+Besides positive "Hoy, Malika" samples, the bot can also collect **hard negatives** — recordings of a phrase that sounds similar to "Hoy, Malika" but is not it, used to train the wake-word model to reject false positives. Once a participant reaches `READY_FOR_RECORDINGS`, every prompt shows two buttons: "🎙 “Hoy, Malika” yuboraman" and "🔀 Boshqa (o‘xshash) so‘z yuboraman". Tapping a button sets the participant's current `collection_mode`, which tags every subsequent voice message until switched again; `/status` reports both counts. Hard negatives never count toward `TARGET_RECORDINGS_PER_USER` or advance `onboarding_state`.
+
+Hard negatives are stored under a separate tree (`dataset/hard_negative/YYYY/MM/DD/`, configurable via `DATASET_HARD_NEGATIVE_BASE_PATH` equivalent `hard_negative_base_path` in `config/dataset.php`) so they never mix with positive originals on disk or in exports. In the admin panel, **Recordings** has a "Sample type" filter and a Type column, the participant and recording detail pages show hard-negative counts, and `dataset:stats` / `dataset:export` break totals down by `sample_type`.
+
 ## Telegram polling
 
 `telegram-polling` runs `php artisan telegram:poll`. It uses Telegram `getUpdates`, persists each update in PostgreSQL before processing, tracks a durable cursor, and dispatches per-user processing through Redis. No webhook route is configured.

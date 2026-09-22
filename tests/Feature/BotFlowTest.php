@@ -127,4 +127,37 @@ class BotFlowTest extends TestCase
         $this->update(2, ['text' => '❌ Rozimasman']);
         $this->assertDatabaseHas('participants', ['consent_given' => false, 'onboarding_state' => 'AWAITING_CONSENT']);
     }
+
+    public function test_switching_to_hard_negative_mode_tags_and_counts_recordings_separately(): void
+    {
+        $this->onboard();
+        $this->mockDownload();
+        $this->update(5, ['text' => '🔀 Boshqa (o‘xshash) so‘z yuboraman']);
+        $this->assertDatabaseHas('participants', ['collection_mode' => 'HARD_NEGATIVE', 'onboarding_state' => 'READY_FOR_RECORDINGS']);
+        $this->update(6, $this->voice());
+        $this->assertDatabaseCount('voice_recordings', 1);
+        $r = VoiceRecording::first();
+        $this->assertSame('HARD_NEGATIVE', $r->sample_type->value);
+        $this->assertStringStartsWith('dataset/hard_negative/', $r->relative_storage_path);
+        $this->assertDatabaseHas('participants', ['recording_count' => 0, 'hard_negative_count' => 1, 'onboarding_state' => 'READY_FOR_RECORDINGS']);
+        $this->assertStringContainsString('o‘xshash so‘z sifatida', TelegramOutbox::where('update_id', 6)->first()->payload['text']);
+        $this->update(7, ['text' => '🎙 “Hoy, Malika” yuboraman']);
+        $this->assertDatabaseHas('participants', ['collection_mode' => 'WAKE_WORD']);
+        $this->update(8, $this->voice());
+        $this->assertDatabaseCount('voice_recordings', 2);
+        $this->assertDatabaseHas('participants', ['recording_count' => 1, 'hard_negative_count' => 1]);
+        $wakeWord = VoiceRecording::where('sample_type', 'WAKE_WORD')->first();
+        $this->assertStringStartsWith('dataset/original/', $wakeWord->relative_storage_path);
+    }
+
+    public function test_hard_negative_recordings_do_not_count_toward_the_wake_word_target(): void
+    {
+        $this->onboard();
+        $this->mockDownload();
+        $this->update(5, ['text' => '🔀 Boshqa (o‘xshash) so‘z yuboraman']);
+        $this->update(6, $this->voice());
+        $this->update(7, $this->voice());
+        $this->update(8, $this->voice());
+        $this->assertDatabaseHas('participants', ['recording_count' => 0, 'hard_negative_count' => 3, 'onboarding_state' => 'READY_FOR_RECORDINGS']);
+    }
 }

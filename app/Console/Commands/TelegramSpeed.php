@@ -19,7 +19,8 @@ class TelegramSpeed extends Command
     {
         $samples = max(1, min(20, (int) $this->option('samples')));
         $load = function_exists('sys_getloadavg') ? sys_getloadavg() : false;   // not available on Windows
-        $this->line('Server load average (1/5/15 min): '.($load ? implode(' / ', array_map(fn ($l) => number_format($l, 2), $load)) : 'unknown').'   (compare with your CPU count: nproc)');
+        $this->line('Server load average (1/5/15 min): '.($load ? implode(' / ', array_map(fn ($l) => number_format($l, 2), $load)) : 'unknown'));
+        $this->hostLine($load ?: []);
         $this->line(sprintf('PostgreSQL round trip: %s   Redis round trip: %s',
             $this->timed(fn () => DB::select('select 1')), $this->timed(fn () => Redis::connection()->ping())));
 
@@ -81,6 +82,41 @@ class TelegramSpeed extends Command
         return ['dns' => $avg($sum['dns']), 'tcp' => $avg($sum['tcp']), 'tls' => $avg($sum['tls']), 'wait' => $avg($sum['wait']), 'total' => $avg($sum['total']),
             'ip' => $ip, 'failed' => $failed, 'reason' => $reason, 'total_ms' => $sum['total'] ? array_sum($sum['total']) / count($sum['total']) : null,
             'setup_ms' => $sum['dns'] ? (array_sum($sum['dns']) + array_sum($sum['tcp']) + array_sum($sum['tls'])) / count($sum['dns']) : null];
+    }
+
+    /** CPUs, memory and swap of the host (Linux only) and whether the load is more than the CPUs can carry. */
+    private function hostLine(array $load): void
+    {
+        foreach ($this->assessHost($load, @file_get_contents('/proc/cpuinfo') ?: '', @file_get_contents('/proc/meminfo') ?: '') as [$level, $text]) {
+            $this->{$level}($text);
+        }
+    }
+
+    /**
+     * Turns /proc data into report lines: [[output method, text], ...]. Public so it can be tested with fixtures.
+     * The one-minute-average load is compared with the CPU count; more than 1.5x means the CPUs cannot keep up.
+     */
+    public function assessHost(array $load, string $cpuinfo, string $meminfo): array
+    {
+        $cpus = preg_match_all('/^processor\s*:/m', $cpuinfo);
+        $kb = fn (string $key) => preg_match('/^'.$key.':\s+(\d+) kB/m', $meminfo, $m) ? (int) $m[1] : null;
+        [$total, $available, $swapTotal, $swapFree] = [$kb('MemTotal'), $kb('MemAvailable'), $kb('SwapTotal'), $kb('SwapFree')];
+        if (! $cpus || ! $total) {
+            return [['line', 'CPU/memory details are only available on Linux hosts.']];
+        }
+        $swapUsed = $swapTotal !== null && $swapFree !== null ? intdiv($swapTotal - $swapFree, 1024) : 0;
+        $lines = [['line', sprintf('CPUs: %d   Memory available: %d of %d MB   Swap in use: %d MB', $cpus, intdiv((int) $available, 1024), intdiv($total, 1024), $swapUsed)]];
+        if ($load && $load[0] > $cpus * 1.5) {
+            $lines[] = ['error', sprintf('SERVER OVERLOADED: load %.1f on %d CPU(s) (%.1fx). Everything is slow because the CPU is starved, not because of the network. Reduce QUEUE_WORKERS / REPLY_WORKERS / DRIVE_WORKERS in .env (about 1-2 workers per CPU in total is plenty), recreate with `docker compose up -d`, and find what else uses the CPU with `top`.', $load[0], $cpus, $load[0] / $cpus)];
+        }
+        if ($available !== null && $available < 0.1 * $total) {
+            $lines[] = ['error', 'LOW MEMORY: less than 10% is available; the server is probably swapping. Reduce the worker counts.'];
+        }
+        if ($swapUsed > 256) {
+            $lines[] = ['warn', 'Swap in use is high ('.$swapUsed.' MB): processes are being pushed to disk, which makes everything slow.'];
+        }
+
+        return $lines;
     }
 
     /** What the bot itself does: one kept-alive connection, so only the first call pays DNS + TCP + TLS. */

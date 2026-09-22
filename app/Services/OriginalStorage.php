@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\SampleType;
 use App\Models\Participant;
 use App\Models\VoiceRecording;
 use App\Services\Telegram\TelegramClient;
@@ -16,15 +17,17 @@ class OriginalStorage
         return Storage::disk(config('dataset.disk'))->path($relative);
     }
 
-    public function save(Participant $participant, array $message, array $voice): array
+    public function save(Participant $participant, array $message, array $voice, SampleType $type = SampleType::WAKE_WORD): array
     {
         $date = CarbonImmutable::createFromTimestampUTC($message['date']);
         $extension = isset($message['voice']) ? 'ogg' : strtolower(pathinfo($voice['file_name'] ?? '', PATHINFO_EXTENSION));
         if (! in_array($extension, ['ogg', 'oga', 'mp3', 'm4a', 'wav', 'flac', 'aac', 'opus'])) {
             $extension = 'bin';
         }
-        $name = sprintf('participant_%08d_message_%d.%s', $participant->id, $message['message_id'], $extension);
-        $relative = config('dataset.base_path').'/'.$date->format('Y/m/d').'/'.$name;
+        $basePath = $type === SampleType::HARD_NEGATIVE ? config('dataset.hard_negative_base_path') : config('dataset.base_path');
+        $prefix = $type === SampleType::HARD_NEGATIVE ? 'hardneg' : 'wakeword';
+        $name = sprintf('%s_participant_%08d_message_%d.%s', $prefix, $participant->id, $message['message_id'], $extension);
+        $relative = $basePath.'/'.$date->format('Y/m/d').'/'.$name;
         $final = $this->path($relative);
         $dir = dirname($final);
         if (! is_dir($dir) && ! mkdir($dir, 0700, true) && ! is_dir($dir)) {
@@ -41,8 +44,8 @@ class OriginalStorage
             $deliveredExtension = strtolower(pathinfo($file['file_path'] ?? '', PATHINFO_EXTENSION));
             if (in_array($deliveredExtension, ['ogg', 'oga', 'mp3', 'm4a', 'wav', 'flac', 'aac', 'opus'])) {
                 $extension = $deliveredExtension;
-                $name = sprintf('participant_%08d_message_%d.%s', $participant->id, $message['message_id'], $extension);
-                $relative = config('dataset.base_path').'/'.$date->format('Y/m/d').'/'.$name;
+                $name = sprintf('%s_participant_%08d_message_%d.%s', $prefix, $participant->id, $message['message_id'], $extension);
+                $relative = $basePath.'/'.$date->format('Y/m/d').'/'.$name;
                 $final = $this->path($relative);
             }
             clearstatcache(true, $temporary);

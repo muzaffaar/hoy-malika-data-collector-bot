@@ -33,6 +33,7 @@ class DashboardStatisticsService
             'Male participants' => (clone $p)->where('gender', 'MALE')->count(), 'Female participants' => (clone $p)->where('gender', 'FEMALE')->count(),
             'Average contributions¹' => round((clone $p)->avg('recording_count') ?? 0, 1),
             'Target completed¹' => (clone $p)->where('recording_count', '>=', config('dataset.target'))->count(),
+            'Hard negative recordings' => (clone $r)->where('sample_type', 'HARD_NEGATIVE')->count(),
             'Pending backup files' => (clone $r)->where(fn ($q) => $q->whereNotIn('backup_status', ['COMPLETED', 'DISABLED'])->orWhereNotIn('local_sync_status', ['COMPLETED', 'DISABLED']))->count(),
             'Local sync pending' => (clone $r)->whereNotIn('local_sync_status', ['COMPLETED', 'DISABLED'])->count(),
             'Drive sync pending' => (clone $r)->whereNotIn('backup_status', ['COMPLETED', 'DISABLED'])->count(),
