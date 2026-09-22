@@ -139,6 +139,6 @@ class AdminFlowTest extends TestCase
     {
         $this->update(17, ['text' => '/start'], fromId: 555);
         $buttons = collect($this->reply(17)['reply_markup']['keyboard'])->flatten()->all();
-        $this->assertSame(['✅ Roziman', '❌ Rozimasman'], $buttons);
+        $this->assertSame(array_keys(config('dataset.age_ranges')), $buttons);
     }
 }

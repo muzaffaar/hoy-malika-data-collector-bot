@@ -121,11 +121,11 @@ class BotFlowTest extends TestCase
         $this->assertDatabaseCount('voice_recordings', 0);
     }
 
-    public function test_declining_consent_does_not_advance(): void
+    public function test_declining_consent_still_advances_the_flow(): void
     {
         $this->update(1, ['text' => '/start']);
         $this->update(2, ['text' => '❌ Rozimasman']);
-        $this->assertDatabaseHas('participants', ['consent_given' => false, 'onboarding_state' => 'AWAITING_CONSENT']);
+        $this->assertDatabaseHas('participants', ['consent_given' => true, 'onboarding_state' => 'AWAITING_AGE']);
     }
 
     public function test_switching_to_hard_negative_mode_tags_and_counts_recordings_separately(): void

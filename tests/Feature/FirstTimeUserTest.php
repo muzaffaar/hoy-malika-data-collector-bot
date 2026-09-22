@@ -31,34 +31,34 @@ class FirstTimeUserTest extends TestCase
         return TelegramOutbox::where('update_id', $updateId)->where('kind', 'reply')->firstOrFail()->payload;
     }
 
-    private function assertConsentButtons(array $reply): void
+    private function assertAgeButtons(array $reply): void
     {
-        $this->assertStringContainsString('rozimisiz', $reply['text']);
+        $this->assertStringContainsString('yoshda bo‘lishi kerak', $reply['text']);
         $buttons = collect($reply['reply_markup']['keyboard'] ?? [])->flatten()->all();
-        $this->assertSame(['✅ Roziman', '❌ Rozimasman'], $buttons, 'A first-time user must always receive the consent buttons.');
+        $this->assertSame(array_keys(config('dataset.age_ranges')), $buttons, 'A first-time user must always receive the age-range buttons.');
     }
 
-    public function test_first_time_start_sends_the_consent_buttons(): void
+    public function test_first_time_start_sends_the_age_buttons(): void
     {
-        $this->assertConsentButtons($this->firstMessage(['text' => '/start']));
+        $this->assertAgeButtons($this->firstMessage(['text' => '/start']));
         $this->assertDatabaseHas('participants', ['telegram_user_id' => 555, 'onboarding_state' => 'AWAITING_CONSENT', 'consent_given' => false]);
     }
 
-    public function test_first_time_help_sends_the_consent_buttons(): void
+    public function test_first_time_help_sends_the_age_buttons(): void
     {
-        $this->assertConsentButtons($this->firstMessage(['text' => '/help']));
+        $this->assertAgeButtons($this->firstMessage(['text' => '/help']));
     }
 
-    public function test_any_other_first_message_also_gets_the_consent_buttons(): void
+    public function test_any_other_first_message_also_gets_the_age_buttons(): void
     {
-        $this->assertConsentButtons($this->firstMessage(['text' => 'salom']));
+        $this->assertAgeButtons($this->firstMessage(['text' => 'salom']));
     }
 
-    public function test_a_voice_sent_before_consent_gets_the_consent_buttons_and_is_not_stored(): void
+    public function test_a_voice_sent_as_first_message_gets_the_age_buttons_and_is_not_stored(): void
     {
         $reply = $this->firstMessage(['voice' => ['file_id' => 'f', 'file_unique_id' => 'u', 'duration' => 2, 'file_size' => 11]]);
 
-        $this->assertConsentButtons($reply);
+        $this->assertAgeButtons($reply);
         $this->assertDatabaseCount('voice_recordings', 0);
     }
 

@@ -76,20 +76,14 @@ class BotFlow
             $response = $this->reply("Siz {$p->recording_count} ta ovoz yuborgansiz.\nO‘xshash (hard negative) so‘zlar: {$p->hard_negative_count} ta.");
         } elseif (in_array($text, ['/start', '/help'])) {
             $response = $this->prompt($p);
-        } elseif ($p->onboarding_state === State::AWAITING_CONSENT || $p->onboarding_state === State::NEW) {
-            if ($text === '✅ Roziman') {
+        } elseif (in_array($p->onboarding_state, [State::NEW, State::AWAITING_CONSENT, State::AWAITING_AGE], true)) {
+            if ($p->onboarding_state !== State::AWAITING_AGE) {
                 $p->consent_given = true;
                 $p->consent_at = now();
                 $p->consent_version = config('dataset.consent_version');
                 $p->onboarding_state = State::AWAITING_AGE;
                 Log::info('participant.consent', ['participant_id' => $p->id, 'version' => $p->consent_version]);
-                $response = $this->prompt($p);
-            } elseif ($text === '❌ Rozimasman') {
-                $response = $this->reply('Tushunarli. Ishtirok etish ixtiyoriy. Fikringiz o‘zgarsa, /start ni bosing.');
-            } else {
-                $response = $this->prompt($p);
             }
-        } elseif ($p->onboarding_state === State::AWAITING_AGE) {
             $ranges = $this->ageRanges();
             if (array_key_exists($text, $ranges)) {
                 $p->age_range = $text;
@@ -183,8 +177,7 @@ class BotFlow
     private function prompt(Participant $p): array
     {
         return match ($p->onboarding_state) {
-            State::NEW, State::AWAITING_CONSENT => $this->reply('Assalomu alaykum! 👋 Biz “Hoy, Malika” ovozli yordamchisi uchun ovoz namunalarini yig‘moqdamiz. Ovozlaringiz AI modelini o‘qitish va tadqiqot uchun ishlatiladi. Ishtirok etishga rozimisiz?', ['✅ Roziman', '❌ Rozimasman']),
-            State::AWAITING_AGE => $this->reply('Ishtirokchilar kamida '.config('dataset.min_age').' yoshda bo‘lishi kerak. Yoshingiz qaysi oraliqda?', array_keys($this->ageRanges())),
+            State::NEW, State::AWAITING_CONSENT, State::AWAITING_AGE => $this->reply('Ishtirokchilar kamida '.config('dataset.min_age').' yoshda bo‘lishi kerak. Yoshingiz qaysi oraliqda?', array_keys($this->ageRanges())),
             State::AWAITING_GENDER => $this->reply('Jinsingizni tanlang:', ['👨 Erkak', '👩 Ayol']),
             default => $p->collection_mode === SampleType::HARD_NEGATIVE
                 ? $this->reply("🔀 Siz hozir “o‘xshash so‘z” rejimidasiz ({$p->hard_negative_count} ta yuborilgan).\n“Hoy, Malika”ga OHANGDOSH, lekin BOSHQA bir so‘z yoki qisqa iborani tabiiy ovozingizda ayting va ovozli xabar sifatida yuboring.\nMisollar: “Hoy, bolam”, “Oy, Malika”, “Salom, Malika”, “Hoy, Sabina”, “Xayr, Malika” — yoki kundalik nutqingizdagi istalgan boshqa qisqa ibora.\n❗️Faqat “Hoy, Malika”ning aynan o‘zini aytmang.\nHar safar bitta ovoz yuboring.\nAsosiy rejimga qaytish uchun pastdagi tugmani bosing.", $this->modeButtons())
