@@ -96,7 +96,7 @@ class BotFlow
             $response = $this->prompt($p);
         } elseif (isset($m['forward_origin']) || ! $voice) {
             $response = $this->reply($p->collection_mode === SampleType::HARD_NEGATIVE
-                ? '🎙 Iltimos, ovozli xabar sifatida “Hoy, Malika”ga o‘xshash, lekin boshqa bir so‘z yoki iborani yuboring.'
+                ? '🎙 Iltimos, ovozli xabar sifatida “Hoy, Malika”ga o‘xshash, lekin boshqa bir so‘z yoki iborani yuboring (masalan: “Hoy, bolam”, “Oy, Malika”, “Salom, Malika”).'
                 : '🎙 Iltimos, “Hoy, Malika” deb aytilgan o‘zingizning ovozli xabaringizni yuboring.', $this->modeButtons());
         } elseif (empty($voice['file_id']) || empty($voice['file_unique_id']) || ! isset($voice['duration']) || $voice['duration'] < config('dataset.min_duration')) {
             $response = $this->reply('Ovoz juda qisqa. Iltimos, iborani to‘liq va aniq ayting.', $this->modeButtons());
@@ -169,7 +169,7 @@ class BotFlow
             State::AWAITING_AGE => $this->reply('Ishtirokchilar kamida '.config('dataset.min_age').' yoshda bo‘lishi kerak. Yoshingiz qaysi oraliqda?', array_keys($this->ageRanges())),
             State::AWAITING_GENDER => $this->reply('Jinsingizni tanlang:', ['👨 Erkak', '👩 Ayol']),
             default => $p->collection_mode === SampleType::HARD_NEGATIVE
-                ? $this->reply("🔀 Siz hozir “o‘xshash so‘z” rejimidasiz ({$p->hard_negative_count} ta yuborilgan).\n“Hoy, Malika”ga OHANGDOSH, lekin BOSHQA bir so‘z yoki qisqa iborani (masalan boshqa ism, kundalik so‘zlashuvdagi biror ibora) tabiiy ovozingizda ayting va ovozli xabar sifatida yuboring. Faqat “Hoy, Malika”ning o‘zini aytmang.\nHar safar bitta ovoz yuboring.\nAsosiy rejimga qaytish uchun pastdagi tugmani bosing.", $this->modeButtons())
+                ? $this->reply("🔀 Siz hozir “o‘xshash so‘z” rejimidasiz ({$p->hard_negative_count} ta yuborilgan).\n“Hoy, Malika”ga OHANGDOSH, lekin BOSHQA bir so‘z yoki qisqa iborani tabiiy ovozingizda ayting va ovozli xabar sifatida yuboring.\nMisollar: “Hoy, bolam”, “Oy, Malika”, “Salom, Malika”, “Hoy, Sabina”, “Xayr, Malika” — yoki kundalik nutqingizdagi istalgan boshqa qisqa ibora.\n❗️Faqat “Hoy, Malika”ning aynan o‘zini aytmang.\nHar safar bitta ovoz yuboring.\nAsosiy rejimga qaytish uchun pastdagi tugmani bosing.", $this->modeButtons())
                 : $this->reply("Xush kelibsiz! Siz {$p->recording_count} ta ovoz yuborgansiz.\n🎙 Faqat “Hoy, Malika” deb tabiiy ovozingizda ayting va ovozli xabar yuboring. Har safar bitta ovoz yuboring.\nSekinroq, tezroq yoki biroz uzoqroqdan aytishingiz mumkin.\n\nModelni yanada aniqroq qilish uchun “o‘xshash so‘z”larni ham yuborishingiz mumkin — buning uchun pastdagi tugmani bosing.", $this->modeButtons()),
         };
     }
