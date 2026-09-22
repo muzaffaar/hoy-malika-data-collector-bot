@@ -19,11 +19,22 @@ class BotFlow
 
     private const BUTTON_HARD_NEGATIVE = '🔀 Boshqa (o‘xshash) so‘z yuboraman';
 
+    public function __construct(private readonly AdminFlow $adminFlow) {}
+
     public function process(TelegramUpdate $update): void
     {
         $m = $update->payload['message'] ?? null;
         if (! $m || ($m['chat']['type'] ?? '') !== 'private' || ($m['from']['is_bot'] ?? true)) {
             $this->finish($update);
+
+            return;
+        }
+        if ($this->isAdmin($m['from']['id'] ?? null)) {
+            $response = $this->adminFlow->handle($m, (int) $m['from']['id']);
+            DB::transaction(function () use ($response, $update, $m) {
+                TelegramOutbox::firstOrCreate(['update_id' => $update->id, 'kind' => 'reply'], ['chat_id' => $m['chat']['id'], 'payload' => $response]);
+                $this->finish($update);
+            });
 
             return;
         }
@@ -138,6 +149,13 @@ class BotFlow
             }
             $this->finish($update);
         });
+    }
+
+    private function isAdmin(mixed $telegramUserId): bool
+    {
+        $adminId = config('telegram.admin_user_id');
+
+        return $adminId !== null && $adminId !== '' && (string) $telegramUserId === (string) $adminId;
     }
 
     private function finish(TelegramUpdate $update): void

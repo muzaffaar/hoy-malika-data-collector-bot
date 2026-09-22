@@ -28,7 +28,14 @@ Dashboard: `APP_URL/admin/login`.
 
 Besides positive "Hoy, Malika" samples, the bot can also collect **hard negatives** — recordings of a phrase that sounds similar to "Hoy, Malika" but is not it, used to train the wake-word model to reject false positives. Once a participant reaches `READY_FOR_RECORDINGS`, every prompt shows two buttons: "🎙 “Hoy, Malika” yuboraman" and "🔀 Boshqa (o‘xshash) so‘z yuboraman". Tapping a button sets the participant's current `collection_mode`, which tags every subsequent voice message until switched again; `/status` reports both counts. Hard negatives never count toward `TARGET_RECORDINGS_PER_USER` or advance `onboarding_state`.
 
-Hard negatives are stored under a separate tree (`dataset/hard_negative/YYYY/MM/DD/`, configurable via `DATASET_HARD_NEGATIVE_BASE_PATH` equivalent `hard_negative_base_path` in `config/dataset.php`) so they never mix with positive originals on disk or in exports. In the admin panel, **Recordings** has a "Sample type" filter and a Type column, the participant and recording detail pages show hard-negative counts, and `dataset:stats` / `dataset:export` break totals down by `sample_type`.
+Hard negatives are stored under a separate tree (`dataset/hard_negative/YYYY/MM/DD/`, set via `hard_negative_base_path` in `config/dataset.php`) so they never mix with positive originals on disk or in exports. In the admin panel, **Recordings** has a "Sample type" filter and a Type column, the participant and recording detail pages show hard-negative counts, and `dataset:stats` / `dataset:export` break totals down by `sample_type`.
+
+## In-bot admin menu
+
+Set `ADMIN_TELEGRAM_USER_ID` to a Telegram numeric user ID to give that account a management menu instead of the normal participant flow (any message from that ID never creates a `participants` row). It offers:
+
+- **📊 Statistika** — total participants, total wake-word/hard-negative recordings, and how many participants have hit the wake-word target vs. sent zero hard negatives.
+- **📢 Eslatmalar** — pick a segment of participants (consented, not blocked, not deleted) to remind: those below the wake-word target, those with zero hard negatives, or either. After picking a segment the bot asks for content: tap "📨 Standart xabar" to use the built-in wording (tailored per recipient's own gap — someone missing both gets a combined message), or instead type your own custom text, or send a round video message (Telegram video note) — it's resent to every matching participant by `file_id` with no re-upload. "❌ Bekor qilish" cancels without sending. All sends are queued through the same `telegram-replies` workers and per-chat lock as normal replies (`App\Jobs\SendBroadcastMessage`).
 
 ## Telegram polling
 
